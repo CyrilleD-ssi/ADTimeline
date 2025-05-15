@@ -369,6 +369,24 @@ else
 	"$(Get-TimeStamp) Schema version is $($rootschema.objectVersion)" | out-file $logfilename -append
 	}
 
+#Retrieving class objects from the schema 
+$classes = Get-ADObject -SearchBase ($root.defaultNamingContext) -SearchScope OneLevel -Server $server  -filter {ObjectClass -eq "classSchema"} -properties defaultSecurityDescriptor
+#If operation times out a different ResultPageSize is used
+if(($error -like '*timeout*') -or ($error -like '*invalid enumeration context*'))
+	{
+	$i = 1
+	while((($error -like '*timeout*') -or ($error -like '*invalid enumeration context*')) -and ($i -le 5))
+		{
+		$resultspagesize = 256 - $i * 40
+		write-output -inputobject "LDAP time out, trying again with ResultPageSize $($resultspagesize)"
+		$error.clear()
+		$dom1 = Get-ADObject -SearchBase ($root.defaultNamingContext) -SearchScope OneLevel -Server $server  -filter {ObjectClass -ne "organizationalUnit"} -properties *
+		$i++
+		}
+	if($dom1){write-output -inputobject "LDAP query succeeded with different ResultPageSize"}
+	else{write-output -inputobject "LDAP query failure despite different ResultPageSize, resuming script"}
+	}
+$criticalobjects += $classes
 
 #Check if current user is DA or EA when online mode running
 if($isonline -eq $true)
